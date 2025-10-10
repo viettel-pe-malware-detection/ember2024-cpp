@@ -22,13 +22,17 @@ set(SRC_FILES "")
 list(APPEND SRC_FILES
     src/main.cpp
     include/efeum/driver1/config.h
-                src/driver1/config.c
+                src/driver1/config.cpp
     include/efeum/driver1/communication.h
                 src/driver1/communication.cpp
     include/efeum/scanning/scan.h
                         src/scan.cpp
     include/efeum/ml/lgbm.h
                         src/lgbm.cpp
+    include/efeum/mmapping.h
+                        src/mmapping.cpp
+    include/efeum/helpers.h
+                        src/helpers.cpp
 )
 
 add_executable(my_program ${SRC_FILES})

@@ -2,24 +2,15 @@
 #include <vector>
 
 #include "efe/core.h"
-#include "mio/mmap.hpp"
 
 #include <windows.h>
 #include <stdio.h>
 #include <signal.h>
 #include "efeum/driver1/communication.h"
+#include "efeum/scanning/scan.h"
 
 #include "efeum/ml/lgbm.h"
-
-template<typename T = feature_t>
-constexpr int getLGBMInputDataType() {
-    if constexpr (std::is_same_v<T, float>) {
-        return C_API_DTYPE_FLOAT32;
-    } else {
-        static_assert( std::is_same_v<T, double> );
-        return C_API_DTYPE_FLOAT64;
-    }
-}
+#include "efeum/helpers.h"
 
 char const* MODEL_FILE = "C:\\emb\\meta.dat";
 
@@ -37,14 +28,22 @@ void SignalHandler(int signal)
     g_running = false;
 }
 
-// TODO: Replace this with your actual AI model
-bool RunAIModelScan(SCAN_TASK_DTO* pTask)
+double IsMalicious(SCAN_TASK_DTO* pTask)
 {
-    // Placeholder: Allow all processes for now
-    printf("  [AI] Running AI model on PID %p...\n", pTask->Pid);
+    std::wstring peFilePath = FileIdToPath(pTask->FileId, pTask->VolumeSerialNumber);
+    if (peFilePath.empty()) {
+        std::cerr << "Failed to resolve file path from FileId" << '\n';
+        return -1;
+    }
+    std::cerr << "Got PE file path." << '\n';
+    double score = scan(g_booster, peFilePath.c_str());
+    if (score < 0) {
+        std::cerr << "Error during scanning" << '\n';
+        return -1;
+    }
+    std::cerr << "Malicious score: " << score << '\n';
 
-    printf("  [AI] Analysis complete: BENIGN\n");
-    return false;  // false = not malicious, allow execution
+    return score;
 }
 
 void ScanningLoop(HANDLE hDevice)
@@ -76,12 +75,18 @@ void ScanningLoop(HANDLE hDevice)
         printf("  Volume Serial: 0x%08X\n", scanTask.VolumeSerialNumber);
 
         // Run AI model
-        bool isMalicious = RunAIModelScan(&scanTask);
+        double predScore = IsMalicious(&scanTask);
+        bool AllowExecution = TRUE;
+        if (predScore >= 0.7) {
+            AllowExecution = FALSE;
+        }
 
         // Prepare verdict
         SCAN_VERDICT_DTO verdict = { 0 };
         verdict.Pid = scanTask.Pid;
-        verdict.AllowExecution = !isMalicious;
+        verdict.AllowExecution = AllowExecution;
+        static_assert(SIZEOF_DOUBLE == sizeof(double));
+        RtlCopyMemory(&verdict.PredScore, &predScore, SIZEOF_DOUBLE);
 
         // Send verdict
         if (!SendVerdict(hDevice, &scanTask, &verdict)) {

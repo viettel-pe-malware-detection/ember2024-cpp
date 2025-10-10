@@ -1,33 +1,27 @@
 #include "efeum/scanning/scan.h"
-#include <filesystem>
+#include "efeum/mmapping.h"
 #include <iostream>
 #include <vector>
 
-double scan(BoosterHandle booster, wchar_t const* peFilePath) {
-    auto absPath = std::filesystem::absolute(peFilePath);
-    std::cerr << "Scanning: " << absPath << '\n';
+#include <LightGBM/c_api.h>
+#include "efeum/ml/lgbm.h"
+#include "efe/core.h"
 
-    if (!std::filesystem::exists(peFilePath)) {
-        std::cerr << "File does not exist: " << peFilePath << std::endl;
-        return -1;
+
+template<typename T = feature_t>
+constexpr int getLGBMInputDataType() {
+    if constexpr (std::is_same_v<T, float>) {
+        return C_API_DTYPE_FLOAT32;
     } else {
-        std::cerr << "File exists and size = "
-                << std::filesystem::file_size(peFilePath)
-                << " bytes\n";
+        static_assert( std::is_same_v<T, double> );
+        return C_API_DTYPE_FLOAT64;
     }
+}
 
-    // mmap it
-    std::error_code error;
-    mio::mmap_source mmap;
-    try {
-        mmap = mio::make_mmap_source(absPath.string(), 0, mio::map_entire_file, error);
-    } catch (std::system_error const& e) {
-        std::cerr << "Error while mmap'ing (exception): " << e.what() << '\n';
-        return -1;
-    }
-
-    if (error) {
-        std::cerr << "Error while mmap'ing: " << error << '\n';
+double scan(BoosterHandle booster, wchar_t const* peFilePath) {
+    mmap_source_t mmap = create_mmap_source(peFilePath, 0, 0);
+    if (!mmap) {
+        std::cerr << "Error while mmap'ing." << '\n';
         return -1;
     }
     std::cerr << "mmap'ed successfully" << '\n';
@@ -36,7 +30,10 @@ double scan(BoosterHandle booster, wchar_t const* peFilePath) {
     #define N_COLS ef.getDim()
 
     EMBER2024FeatureExtractor ef;
-    feature_t const* inputVector = ef.run(reinterpret_cast<uint8_t const*>(mmap.data()), mmap.size());
+    feature_t const* inputVector = ef.run(
+        reinterpret_cast<uint8_t const*>(get_mmap_data(mmap)),
+        get_mmap_size(mmap)
+    );
     std::cerr << "feature extraction run successfully" << '\n';
     // std::cerr << "feature vector:\n";
     // for (size_t i = 0; i < N_COLS; ++i) {
@@ -67,8 +64,10 @@ double scan(BoosterHandle booster, wchar_t const* peFilePath) {
     if (ret != 0) {
         const char *err_msg = LGBM_GetLastError();
         std::cerr << "Prediction failed: " << err_msg << std::endl;
-        return 1;
+        out_result[0] = -1;
     }
+
+    delete_mmap_source(mmap);
 
     return out_result[0];
 }

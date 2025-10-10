@@ -10,6 +10,7 @@ public:
     #define ADD(value, name) \
         static constexpr dll_characteristic_t const name = value; \
     
+    
     #include "dll_characteristics_declarations.h"
 
     #undef ADD
