@@ -1,22 +1,9 @@
-#include <LightGBM/c_api.h>
+#include "efeum/scanning/scan.h"
+#include <filesystem>
 #include <iostream>
 #include <vector>
-#include <filesystem>
 
-#include "efe/core.h"
-#include "mio/mmap.hpp"
-
-template<typename T = feature_t>
-constexpr int getLGBMInputDataType() {
-    if constexpr (std::is_same_v<T, float>) {
-        return C_API_DTYPE_FLOAT32;
-    } else {
-        static_assert( std::is_same_v<T, double> );
-        return C_API_DTYPE_FLOAT64;
-    }
-}
-
-double scan(BoosterHandle booster, char const* peFilePath) {
+double scan(BoosterHandle booster, wchar_t const* peFilePath) {
     auto absPath = std::filesystem::absolute(peFilePath);
     std::cerr << "Scanning: " << absPath << '\n';
 
@@ -84,40 +71,4 @@ double scan(BoosterHandle booster, char const* peFilePath) {
     }
 
     return out_result[0];
-}
-
-int main(int argc, char** argv) {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <path/to/model/file> <path/to/executable>" << std::endl;
-        return 1;
-    }
-
-    BoosterHandle booster;
-    int num_iterations;
-
-    char const* MODEL_FILE = argv[1];
-    char const* PE_FILE = argv[2];
-
-    // Load the pretrained model
-    int ret = LGBM_BoosterCreateFromModelfile(MODEL_FILE, &num_iterations, &booster);
-    if (ret != 0) {
-        std::cerr << "Failed to load model!" << std::endl;
-        return 1;
-    }
-
-    int num_features;
-    LGBM_BoosterGetNumFeature(booster, &num_features);
-    std::cout << "Model expects " << num_features << " features" << std::endl;
-
-    double pred = scan(booster, PE_FILE);
-    if (pred < 0) {
-        std::cout << "Some error has occurred." << '\n';
-    } else {
-        std::cout << "Prediction: " << pred << std::endl;
-    }
-
-    // Free the booster
-    LGBM_BoosterFree(booster);
-
-    return 0;
 }

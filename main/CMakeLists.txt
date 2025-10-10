@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build static libraries" FORCE)
+
 set(LIGHTGBM_INCLUDE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../LightGBM/include")
 
 if (WIN32)
@@ -11,15 +13,28 @@ if (WIN32)
         "${CMAKE_CURRENT_LIST_DIR}/../../LightGBM/Release/lib_lightgbm.lib")
 else()
     # Linux / macOS
+    message(FATAL_ERROR "Only compiles on Windows")
     set(LIGHTGBM_STATIC_LIB_FILE
         "${CMAKE_CURRENT_LIST_DIR}/../../LightGBM/lib_lightgbm.a")
 endif()
 
-include_directories(${LIGHTGBM_INCLUDE_DIR})
-
-set(SRC_FILES main.cpp)
+set(SRC_FILES "")
+list(APPEND SRC_FILES
+    src/main.cpp
+    include/efeum/driver1/config.h
+                src/driver1/config.c
+    include/efeum/driver1/communication.h
+                src/driver1/communication.cpp
+    include/efeum/scanning/scan.h
+                        src/scan.cpp
+    include/efeum/ml/lgbm.h
+                        src/lgbm.cpp
+)
 
 add_executable(my_program ${SRC_FILES})
+
+target_include_directories(my_program PUBLIC include)
+target_include_directories(my_program PUBLIC ${LIGHTGBM_INCLUDE_DIR})
 
 set(LINKED_LIBRARIES "${LIGHTGBM_STATIC_LIB_FILE}")
 
@@ -29,6 +44,13 @@ if (NOT WIN32)
         m            # math library
         rt           # real-time library
         dl           # dynamic loader
+    )
+endif()
+
+if (WIN32)
+    target_link_libraries(my_program PRIVATE
+        user32
+        kernel32
     )
 endif()
 
