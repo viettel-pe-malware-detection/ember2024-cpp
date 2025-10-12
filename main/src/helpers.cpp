@@ -6,6 +6,12 @@
 #include <cstdint>
 #include <strsafe.h>
 
+// #define VERBOSE
+
+#ifdef VERBOSE
+#include <iostream>
+#endif
+
 std::wstring FormatTimestamp(const LARGE_INTEGER& ts) {
     FILETIME ft;
     ft.dwLowDateTime = ts.LowPart;
@@ -34,24 +40,32 @@ std::wstring FileIdToPath(const FILE_ID_128& fileId, ULONG volumeSerialNumber)
     WCHAR volumeName[MAX_PATH] = {};
     HANDLE hFind = FindFirstVolumeW(volumeName, ARRAYSIZE(volumeName));
     if (hFind == INVALID_HANDLE_VALUE) {
-        // fallback: placeholder string
-        std::wstringstream ss;
-        ss << L"Vol_" << std::hex << volumeSerialNumber
-           << L":\\file_" << std::hex << fileId.Identifier[0] << L".bin";
-        return ss.str();
+        #ifdef VERBOSE
+        std::cerr << "FindFirstVolumeW failed: " << GetLastError() << '\n';
+        #endif
+        return {};
     }
 
     std::wstring result;
 
     do {
-        // Skip trailing backslash for GetVolumeInformationW
-        std::wstring volPath(volumeName);
-        if (volPath.back() == L'\\') volPath.pop_back();
+        // No need to skip trailing backslash for GetVolumeInformationW
+        // std::wstring volPath(volumeName);
+        // if (volPath.back() == L'\\') volPath.pop_back();
 
         DWORD serial = 0;
-        if (GetVolumeInformationW(volPath.c_str(), nullptr, 0, &serial, nullptr, nullptr, nullptr, 0)) {
+        #ifdef VERBOSE
+        std::cerr << "Calling GetVolumeInformationW\n";
+        #endif
+        if (GetVolumeInformationW(/*volPath.c_str()*/volumeName, nullptr, 0, &serial, nullptr, nullptr, nullptr, 0)) {
+            #ifdef VERBOSE
+            std::cerr << "Viewing volume with serial: " << std::hex << serial << std::dec << '\n';
+            #endif
             if (serial == volumeSerialNumber) {
                 // Found matching volume
+                #ifdef VERBOSE
+                std::cerr << "Found matching volume\n";
+                #endif
                 HANDLE hVol = CreateFileW(
                     volumeName,
                     GENERIC_READ,
@@ -75,11 +89,17 @@ std::wstring FileIdToPath(const FILE_ID_128& fileId, ULONG volumeSerialNumber)
                         0);
 
                     if (hFile != INVALID_HANDLE_VALUE) {
-                        WCHAR pathBuf[MAX_PATH * 2] = {};
+                        #ifdef VERBOSE
+                        std::cerr << "Found matching file\n";
+                        #endif
+                        thread_local WCHAR pathBuf[MAX_PATH * 3] = {};
                         DWORD len = GetFinalPathNameByHandleW(hFile, pathBuf, ARRAYSIZE(pathBuf), FILE_NAME_NORMALIZED);
                         if (len > 0 && len < ARRAYSIZE(pathBuf)) {
                             result.assign(pathBuf, len);
                         }
+                        #ifdef VERBOSE
+                        std::cerr << "Matching file path assigned\n";
+                        #endif
                         CloseHandle(hFile);
                     }
                     CloseHandle(hVol);

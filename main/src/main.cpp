@@ -1,3 +1,5 @@
+#define PREDICTION_THRESHOLD 0.801
+
 #include <iostream>
 #include <vector>
 
@@ -77,7 +79,7 @@ void ScanningLoop(HANDLE hDevice)
         // Run AI model
         double predScore = IsMalicious(&scanTask);
         bool AllowExecution = TRUE;
-        if (predScore >= 0.7) {
+        if (predScore >= PREDICTION_THRESHOLD) {
             AllowExecution = FALSE;
         }
 

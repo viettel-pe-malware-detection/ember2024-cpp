@@ -87,7 +87,7 @@ HANDLE OpenDriverDevice()
         return INVALID_HANDLE_VALUE;
     }
 
-    printf("Device path: %ls\n", deviceInterfaceDetailData->DevicePath);
+    printf("Device path: %s\n", deviceInterfaceDetailData->DevicePath);
 
     // Open the device
     hDevice = CreateFile(
@@ -233,7 +233,7 @@ bool GetPendingTask(HANDLE hDevice, SCAN_TASK_DTO* pTask)
     }
 
     if (bytesReturned < sizeof(SCAN_TASK_DTO)) {
-        printf("ERROR: Invalid response size\n");
+        printf("No request so far.\n");
         return false;
     }
 
@@ -325,7 +325,7 @@ HRESULT ComputeAttestation(
     NTSTATUS status = STATUS_SUCCESS;
     BCRYPT_ALG_HANDLE hAlg = NULL;
     BCRYPT_HASH_HANDLE hHash = NULL;
-    UCHAR hashObject[64];     // Internal buffer for hash state
+    UCHAR hashObject[1024];     // Internal buffer for hash state
     UCHAR computedHash[32];   // SHA256 digest (32 bytes)
     HRESULT hr = S_OK;
 
